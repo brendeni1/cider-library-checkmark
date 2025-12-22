@@ -1,39 +1,37 @@
-# Cider Library Checkmark Plugin
+# Library Checkmark for Cider
 
-A minimal Cider plugin that shows a checkmark icon next to songs in album view that are in your Apple Music library. The checkmark appears in place of the favorite star for non-favorited songs, providing a clean visual indicator of library membership.
+A Cider plugin that shows minimal checkmark icons on album tracks that are in your Apple Music library.
+
+![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
+![Cider](https://img.shields.io/badge/Cider-2.5%2B-red.svg)
 
 ## Features
 
-- **Minimal Design**: Shows a bold white checkmark icon for songs in your library
-- **Smart Positioning**: Checkmark appears where the favorite star would be (only for non-favorited songs)
-- **Album View Only**: Only appears on album view pages to avoid clutter on playlists
-- **Efficient Caching**: Two-tier cache system for optimal performance
-- **Batch Processing**: Checks entire albums in a single pass
-- **Automatic Updates**: Refreshes library status periodically
-
-## How the Checkmark Works
-
-- **Song in library + NOT favorited** → Checkmark shows ✓
-- **Song in library + favorited** → Star shows ★ (no checkmark)
-- **Song NOT in library** → Empty space (no icon)
-
-This ensures a clean, uncluttered look while providing maximum information.
+- ✅ **Visual Indicators**: Shows a subtle checkmark on tracks that are in your library
+- 🎯 **Album View Only**: Works exclusively on album pages (playlists excluded)
+- ⚡ **Smart Caching**: Configurable cache durations for optimal performance
+- 🔄 **Loading Icons**: Optional spinning indicators while checking library status
+- ⚙️ **Customizable Settings**: Full control over cache durations and display options
+- 💾 **Persistent Storage**: Caches library data in localStorage for fast subsequent loads
 
 ## Installation
 
-### From Release (Recommended)
+### From Cider Marketplace (Coming Soon)
+1. Open Cider
+2. Go to Settings → Plugins → Marketplace
+3. Search for "Library Checkmark"
+4. Click Install
 
-1. Download the latest release from the [Releases page](https://github.com/brendeni1/cider-library-checkmark/releases)
-2. Extract the `brendeni1.library-checkmark` folder from the ZIP
-3. Open Cider and go to Settings → Extensions → Plugins
-4. Click "..." and select "Open AppData Folder"
-5. Navigate to the `plugins` directory
-6. Copy the `brendeni1.library-checkmark` folder into the `plugins` directory
-7. Back in Cider, click "..." again and select "Refresh Plugins List"
-8. Enable the plugin
+### Manual Installation
+1. Download the latest release from [Releases](https://github.com/brendeni1/cider-library-checkmark/releases)
+2. Extract the ZIP file
+3. Copy the plugin folder to your Cider plugins directory:
+   - **Windows**: `%APPDATA%\C2Windows\plugins`
+   - **macOS**: `~/Library/Application Support/sh.cider.electron/plugins`
+   - **Linux**: `~/.config/sh.cider.electron/plugins`
+4. Restart Cider
 
-### From Source
-
+### Build from Source
 ```bash
 # Clone the repository
 git clone https://github.com/brendeni1/cider-library-checkmark.git
@@ -43,103 +41,116 @@ cd cider-library-checkmark
 pnpm install
 
 # Build the plugin
-pnpm build
+pnpm run build
 
-# The built plugin will be in the dist/ folder
-# Copy the entire dist/ folder to your Cider plugins directory
+# The built plugin will be in dist/brendeni1.library-checkmark
 ```
+
+## Settings
+
+Access plugin settings via: **Cider Settings → Plugins → Library Checkmark → Settings Icon**
+
+### Cache Settings
+- **Library Cache Duration** (1-60 minutes, default: 5)
+  - How long to cache your complete library list
+  - Recommended: 5 minutes for optimal balance
+  
+- **Single Song Cache Duration** (1-30 minutes, default: 2)
+  - How long to cache individual song library status checks
+  - Recommended: 2 minutes to quickly reflect recent changes
+
+### Display Settings
+- **Enable Loading Icons** (toggle, default: enabled)
+  - Shows a spinning icon while checking library status
+  - Disable for a cleaner, minimal interface
+
+### Actions
+- **Refetch Library** - Manually refresh your library data and update all checkmarks
+- **Clear Cache** - Clear all cached data (forces fresh fetch on next check)
 
 ## How It Works
 
-The plugin uses a smart two-tier caching system:
+1. **Initial Load**: When you view an album, the plugin fetches your complete library catalog
+2. **Smart Caching**: Your library list is cached for 5 minutes (configurable)
+3. **Track Checking**: Each track is checked against your cached library
+4. **Visual Feedback**: Checkmarks appear on tracks in your library (if not favorited)
+5. **Performance**: Individual song checks are cached for 2 minutes (configurable)
 
 ### Cache Strategy
 
-1. **Library Catalog Cache** (5 minutes)
-   - Fetches your complete library once
-   - Stores all catalog IDs in memory and localStorage
-   - Refreshes every 5 minutes to stay current
-   - Persists across browser sessions
+The plugin uses a two-tier caching system:
 
-2. **Individual Song Check Cache** (2 minutes)
-   - Caches the result of each song check
-   - Short 2-minute duration for quick updates
-   - Checks against the cached library list
-   - In-memory only (faster access)
+- **Library Catalog Cache** (5 min default): Stores the complete list of your library songs
+  - Saved to localStorage for persistence across sessions
+  - Refreshes automatically after expiration
+  
+- **Individual Song Cache** (2 min default): Stores library status for specific tracks
+  - In-memory only (cleared on page refresh)
+  - Provides quick responses for recently checked songs
 
-### Why This Design?
+## Developer Commands
 
-- **Library catalog changes relatively quickly** → Cache for 5 minutes (when you add songs, they show up soon)
-- **You might check the same album multiple times** → Cache individual checks for 2 minutes
-- **Result**: Fast UI updates with minimal API calls, fresh data within 5 minutes
-
-### When You View an Album
-
-1. Plugin detects you're on an album view
-2. Checks if library catalog is cached (1 hour)
-3. If not cached, fetches your entire library once
-4. For each song, checks if its ID is in the cached catalog
-5. Displays checkmarks for songs found in library
-6. Caches individual results for 2 minutes
-
-## Performance & API Impact
-
-### Typical Usage
-- **First time**: 1 API call to fetch entire library (~1-5 seconds for large libraries)
-- **Next album within 5 minutes**: 0 API calls (uses cached library)
-- **Revisiting same album within 2 minutes**: 0 processing (uses cached results)
-
-### Example: Large Library (5000+ songs)
-- Initial fetch: ~5 seconds, 50-100 API calls (one-time cost)
-- Cached for 5 minutes: Instant checkmarks for all subsequent albums
-- After 5 minutes: Refreshes automatically in background (~1-2 seconds)
-
-This is extremely efficient compared to checking each song individually!
-
-## Manual Commands
-
-The plugin exposes two commands you can run in the browser console:
+Access via browser console:
 
 ```javascript
-// Force refresh library data and re-check all songs
-refreshLibraryCheckmarks()
+// Manually refresh library and update all checkmarks
+window.libraryCheckmarkPlugin.refreshLibraryCheckmarks()
 
-// Clear all caches (library list + individual song checks)
+// Clear all cached library data
+window.libraryCheckmarkPlugin.clearLibraryCache()
+
+// Legacy commands (still supported)
+refreshLibraryCheckmarks()
 clearLibraryCache()
 ```
 
-## Compatibility
+## Technical Details
 
-- **Cider Version**: 2.5.0+
-- **Apple Music**: Requires an active Apple Music subscription
-- **Platforms**: Windows, macOS, Linux
+- **Requires**: Cider 2.5 or later
+- **Library Size**: Supports up to 25,000 songs
+- **API Rate Limiting**: Smart batching prevents API throttling
+- **DOM Observer**: Automatically detects new tracks without manual refresh
+- **No External Dependencies**: Pure TypeScript/Vue implementation
 
 ## Troubleshooting
 
 ### Checkmarks not appearing?
-1. Make sure you're viewing an album (not a playlist)
-2. Try running `refreshLibraryCheckmarks()` in console
-3. Check that songs are actually in your library (add them if not)
-
-### Checkmarks showing for favorited songs?
-- This is intentional - favorited songs show the star instead of the checkmark
+1. Ensure you're on an album view (not a playlist)
+2. Try the **Refetch Library** button in settings
+3. Check browser console for error messages
+4. Verify you're signed into Apple Music
 
 ### Performance issues with large libraries?
-- The initial library fetch takes 1-5 seconds for 5000+ songs
-- After that, it's cached for an hour with instant results
-- Try `clearLibraryCache()` if data seems stale
+1. Increase cache durations in settings
+2. Disable loading icons if not needed
+3. The initial fetch may take time for 10k+ song libraries
+
+### Settings not saving?
+1. Ensure browser localStorage is enabled
+2. Try clearing cache and refetching
+3. Restart Cider
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ## Development
 
 ```bash
-# Start development server
-pnpm dev
+# Start development server with hot reload
+pnpm run dev
 
 # Build for production
-pnpm build
+pnpm run build
 
 # Prepare marketplace package
-pnpm prepare-marketplace
+pnpm run prepare-marketplace
 ```
 
 ## License
@@ -148,8 +159,14 @@ MIT License - see [LICENSE](LICENSE) file for details
 
 ## Credits
 
-Built with [Cider PluginKit](https://github.com/ciderapp/pluginkit)
+- Created by [brenden.i1](https://github.com/brendeni1)
+- Built for [Cider](https://cider.sh)
+
+## Support
+
+- Report bugs: [GitHub Issues](https://github.com/brendeni1/cider-library-checkmark/issues)
+- Feature requests: [GitHub Discussions](https://github.com/brendeni1/cider-library-checkmark/discussions)
 
 ---
 
-Made with ❤️ for the Cider community
+**Note**: This plugin requires an active Apple Music subscription and only works within the Cider music player.

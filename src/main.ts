@@ -1,5 +1,7 @@
 import { definePluginContext } from "@ciderapp/pluginkit";
+import { defineCustomElement } from "vue";
 import PluginConfig from "./plugin.config";
+import MySettings from "./components/MySettings.vue";
 
 interface LibraryCacheEntry {
   isInLibrary: boolean;
@@ -11,15 +13,31 @@ interface LibrarySnapshot {
   timestamp: number;
 }
 
+interface PluginSettings {
+  libraryCacheDuration: number;
+  singleSongCacheDuration: number;
+  enableLoadingIcons: boolean;
+}
+
+const DEFAULT_SETTINGS: PluginSettings = {
+  libraryCacheDuration: 5, // minutes
+  singleSongCacheDuration: 2, // minutes
+  enableLoadingIcons: true,
+};
+
 /**
  * Defining the plugin context
  */
-const { plugin } = definePluginContext({
+const { plugin, setupConfig, customElementName } = definePluginContext({
   ...PluginConfig,
   setup() {
     const checkCache = new Map<string, LibraryCacheEntry>();
-    const CHECK_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes - how long to cache individual song library status checks
-    const LIBRARY_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes - how long to cache the full library catalog ID list
+    
+    // Setup configuration with defaults
+    const cfg = setupConfig(DEFAULT_SETTINGS);
+    
+    // Expose config to window for settings component
+    (window as any).libraryCheckmarkConfig = cfg;
     
     let libraryCatalogIds: Set<string> | null = null;
     let libraryFetchTimestamp = 0;
@@ -28,6 +46,35 @@ const { plugin } = definePluginContext({
     let isProcessing = false;
 
     console.log("🎵 Library Checkmark Plugin initializing...");
+
+    // Register settings custom element
+    customElements.define(
+      customElementName("settings"),
+      defineCustomElement(MySettings, {
+        shadowRoot: false,
+      })
+    );
+
+    // Set the settings element for Cider
+    this.SettingsElement = customElementName("settings");
+
+    /**
+     * Get current settings
+     */
+    function getSettings(): PluginSettings {
+      return cfg.value;
+    }
+
+    /**
+     * Get cache durations in milliseconds
+     */
+    function getCacheDurations() {
+      const settings = getSettings();
+      return {
+        CHECK_CACHE_DURATION: settings.singleSongCacheDuration * 60 * 1000,
+        LIBRARY_CACHE_DURATION: settings.libraryCacheDuration * 60 * 1000,
+      };
+    }
 
     /**
      * Load library snapshot from localStorage
@@ -39,6 +86,7 @@ const { plugin } = definePluginContext({
         
         const snapshot = JSON.parse(stored) as LibrarySnapshot;
         const age = Date.now() - snapshot.timestamp;
+        const { LIBRARY_CACHE_DURATION } = getCacheDurations();
         
         if (age > LIBRARY_CACHE_DURATION) {
           console.log('📦 Library snapshot expired');
@@ -71,14 +119,13 @@ const { plugin } = definePluginContext({
 
     /**
      * Check if cache entry is still valid
-     * This checks individual song library status cache entries.
-     * After 2 minutes, the status for a specific song is rechecked against the library catalog.
      */
     function isCacheValid(songId: string): boolean {
       const entry = checkCache.get(songId);
       if (!entry) return false;
       
       const now = Date.now();
+      const { CHECK_CACHE_DURATION } = getCacheDurations();
       if (now > entry.timestamp + CHECK_CACHE_DURATION) {
         checkCache.delete(songId);
         return false;
@@ -89,7 +136,6 @@ const { plugin } = definePluginContext({
 
     /**
      * Update cache with library status
-     * Stores whether a specific song is in the library for 2 minutes.
      */
     function updateCache(songId: string, isInLibrary: boolean): void {
       checkCache.set(songId, {
@@ -102,26 +148,21 @@ const { plugin } = definePluginContext({
      * Check if we're on an album view (NOT playlist)
      */
     function isAlbumView(): boolean {
-      // Check URL hash
       const hash = window.location.hash;
       
-      // Must contain /album/ in URL
       if (!hash.includes('/album/')) {
         return false;
       }
       
-      // Must NOT contain /playlist/
       if (hash.includes('/playlist/')) {
         return false;
       }
       
-      // Check for album-view class in DOM
       const albumView = document.querySelector('.album-view');
       if (!albumView) {
         return false;
       }
       
-      // Make sure it's not a playlist-view
       const playlistView = document.querySelector('.playlist-view');
       if (playlistView) {
         return false;
@@ -131,29 +172,61 @@ const { plugin } = definePluginContext({
     }
 
     /**
-     * Add checkmark indicator to a track element
+     * Check if rating section has favorite content
      */
-    function addIndicator(trackElement: HTMLElement, isInLibrary: boolean): void {
-      const existing = trackElement.querySelector('.library-check-indicator');
-      if (existing) existing.remove();
+    function hasFavoriteContent(ratingSection: HTMLElement): boolean {
+      return !!ratingSection.querySelector('.app-chrome-button.active, svg:not(.library-check-indicator svg):not(.library-loading-indicator svg), i, .fa-star, [class*="star"]');
+    }
 
-      // Find the rating section
+    /**
+     * Add loading indicator to a track element
+     */
+    function addLoadingIndicator(trackElement: HTMLElement): void {
+      const settings = getSettings();
+      if (!settings.enableLoadingIcons) return;
+
       const ratingSection = trackElement.querySelector('.rating') as HTMLElement;
       if (!ratingSection) return;
 
-      // Check if there's already any content in the rating section (favorite star/button)
-      const hasFavorite = ratingSection.querySelector('.app-chrome-button.active, svg, i, .fa-star, [class*="star"]');
-      
+      // Don't show loading icon if there's already favorite content
+      if (hasFavoriteContent(ratingSection)) return;
+
+      // Remove any existing indicators
+      const existing = ratingSection.querySelector('.library-check-indicator, .library-loading-indicator');
+      if (existing) existing.remove();
+
+      // Add loading spinner
+      const loader = document.createElement('div');
+      loader.className = 'library-loading-indicator';
+      loader.title = 'Checking library...';
+      loader.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+        </svg>
+      `;
+
+      ratingSection.appendChild(loader);
+    }
+
+    /**
+     * Add checkmark indicator to a track element
+     */
+    function addIndicator(trackElement: HTMLElement, isInLibrary: boolean): void {
+      const ratingSection = trackElement.querySelector('.rating') as HTMLElement;
+      if (!ratingSection) return;
+
+      // Remove any existing indicators (including loading)
+      const existing = ratingSection.querySelectorAll('.library-check-indicator, .library-loading-indicator');
+      existing.forEach(el => el.remove());
+
       // If song is not in library, clear any checkmark and return
       if (!isInLibrary) {
         ratingSection.classList.remove('has-library-check');
-        const checkmark = ratingSection.querySelector('.library-check-indicator');
-        if (checkmark) checkmark.remove();
         return;
       }
 
-      // If there's already any content in the rating section (favorite star/button), don't add checkmark
-      if (hasFavorite || ratingSection.children.length > 0) {
+      // If there's already favorite content in the rating section, don't add checkmark
+      if (hasFavoriteContent(ratingSection) || ratingSection.children.length > 0) {
         ratingSection.classList.remove('has-library-check');
         return;
       }
@@ -174,18 +247,10 @@ const { plugin } = definePluginContext({
 
     /**
      * Get library catalog IDs (from cache or fresh fetch)
-     * 
-     * This fetches the complete list of catalog IDs for all songs in your library.
-     * The list is cached for 5 minutes in both memory and localStorage to avoid expensive API calls.
-     * 
-     * Cache strategy:
-     * - LIBRARY_CACHE_DURATION (5 minutes): Full library catalog ID list
-     * - CHECK_CACHE_DURATION (2 minutes): Individual song library status results
-     * 
-     * This means the plugin checks against a cached library list, but refreshes that list every 5 minutes.
-     * Individual song checks are cached for 2 minutes to quickly respond to recent changes.
      */
     async function getLibraryCatalogIds(): Promise<Set<string>> {
+      const { LIBRARY_CACHE_DURATION } = getCacheDurations();
+      
       // Return cached if still valid
       if (libraryCatalogIds && (Date.now() - libraryFetchTimestamp < LIBRARY_CACHE_DURATION)) {
         console.log('✅ Using in-memory library cache');
@@ -237,7 +302,6 @@ const { plugin } = definePluginContext({
           
           allLibrarySongs = allLibrarySongs.concat(songs);
           
-          // Show progress every 500 songs
           if (allLibrarySongs.length % 500 === 0) {
             console.log(`  Fetched ${allLibrarySongs.length} songs...`);
           }
@@ -254,7 +318,6 @@ const { plugin } = definePluginContext({
 
         console.log(`✅ Fetched ${allLibrarySongs.length} total library songs`);
 
-        // Extract catalog IDs
         const catalogIds = new Set<string>();
         allLibrarySongs.forEach(song => {
           if (song.attributes?.playParams?.catalogId) {
@@ -267,7 +330,6 @@ const { plugin } = definePluginContext({
 
         console.log(`📊 Found ${catalogIds.size} unique catalog IDs`);
 
-        // Save to both memory and localStorage
         libraryCatalogIds = catalogIds;
         libraryFetchTimestamp = Date.now();
         saveLibrarySnapshot(Array.from(catalogIds));
@@ -287,8 +349,7 @@ const { plugin } = definePluginContext({
       const currentUrl = window.location.hash;
       
       if (!isAlbumView()) {
-        // Clear indicators if we navigated away from album view
-        document.querySelectorAll('.library-check-indicator').forEach(el => el.remove());
+        document.querySelectorAll('.library-check-indicator, .library-loading-indicator').forEach(el => el.remove());
         return;
       }
       
@@ -306,7 +367,6 @@ const { plugin } = definePluginContext({
       const trackElements = document.querySelectorAll('.ri-list-item[data-item-id]');
       console.log(`📋 Found ${trackElements.length} tracks`);
 
-      // Collect songs that need checking
       const songsToCheck: Array<{ id: string; element: HTMLElement }> = [];
       let cachedCount = 0;
 
@@ -317,13 +377,12 @@ const { plugin } = definePluginContext({
         if (!songId) return;
 
         if (forceRefresh) {
-          const existing = element.querySelector('.library-check-indicator');
-          if (existing) existing.remove();
+          const existing = element.querySelectorAll('.library-check-indicator, .library-loading-indicator');
+          existing.forEach(el => el.remove());
         } else {
           if (element.querySelector('.library-check-indicator')) return;
         }
 
-        // Check cache first
         if (!forceRefresh && isCacheValid(songId)) {
           const entry = checkCache.get(songId);
           if (entry) {
@@ -333,6 +392,8 @@ const { plugin } = definePluginContext({
           }
         }
 
+        // Show loading indicator
+        addLoadingIndicator(element);
         songsToCheck.push({ id: songId, element });
       });
 
@@ -343,10 +404,8 @@ const { plugin } = definePluginContext({
       if (songsToCheck.length > 0) {
         console.log(`🔍 Checking ${songsToCheck.length} songs...`);
         
-        // Get library catalog IDs
         const libraryCatalogIds = await getLibraryCatalogIds();
 
-        // Check each song
         let foundCount = 0;
         songsToCheck.forEach(({ id, element }) => {
           const isInLibrary = libraryCatalogIds.has(id);
@@ -400,7 +459,8 @@ const { plugin } = definePluginContext({
           justify-content: center;
         }
 
-        .library-check-indicator {
+        .library-check-indicator,
+        .library-loading-indicator {
           display: flex;
           align-items: center;
           justify-content: center;
@@ -414,7 +474,22 @@ const { plugin } = definePluginContext({
           filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
         }
 
-        .ri-list-item:hover .library-check-indicator {
+        .library-loading-indicator svg {
+          animation: library-spin 1s linear infinite;
+          opacity: 0.5;
+        }
+
+        @keyframes library-spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        .ri-list-item:hover .library-check-indicator,
+        .ri-list-item:hover .library-loading-indicator {
           opacity: 1;
         }
       `;
@@ -422,9 +497,7 @@ const { plugin } = definePluginContext({
     }
 
     /**
-     * Invalidate library cache (call when library changes)
-     * Clears both the full library catalog list and individual song check results.
-     * Forces a fresh fetch on next check.
+     * Invalidate library cache
      */
     function invalidateLibraryCache(): void {
       console.log('🔄 Invalidating library cache');
@@ -432,6 +505,15 @@ const { plugin } = definePluginContext({
       libraryFetchTimestamp = 0;
       checkCache.clear();
       localStorage.removeItem('cider-library-checkmark-snapshot');
+    }
+
+    /**
+     * Manual refetch
+     */
+    async function manualRefetch(): Promise<void> {
+      console.log('🔄 Manual refetch triggered');
+      invalidateLibraryCache();
+      await processVisibleSongs(true);
     }
 
     // Initialize plugin
@@ -445,21 +527,25 @@ const { plugin } = definePluginContext({
         setTimeout(() => processVisibleSongs(), 500);
       });
 
-      // Manual commands
-      (window as any).refreshLibraryCheckmarks = () => {
-        invalidateLibraryCache();
-        processVisibleSongs(true);
+      // Expose API for settings UI buttons
+      (window as any).libraryCheckmarkPlugin = {
+        refreshLibraryCheckmarks: manualRefetch,
+        clearLibraryCache: invalidateLibraryCache,
       };
 
+      // Legacy commands for backwards compatibility
+      (window as any).refreshLibraryCheckmarks = manualRefetch;
       (window as any).clearLibraryCache = invalidateLibraryCache;
+      
+      const settings = getSettings();
+      console.log("✅ Library Checkmark Plugin loaded!");
+      console.log("💾 Cache Strategy:");
+      console.log(`   - Library catalog list: ${settings.libraryCacheDuration} minutes (localStorage + memory)`);
+      console.log(`   - Individual song checks: ${settings.singleSongCacheDuration} minutes (memory)`);
+      console.log(`   - Loading icons: ${settings.enableLoadingIcons ? 'enabled' : 'disabled'}`);
+      console.log("🎯 Album view only (playlists excluded)");
+      console.log("💡 Access settings in plugin settings page");
     }, 1000);
-
-    console.log("✅ Library Checkmark Plugin loaded!");
-    console.log("💾 Cache Strategy:");
-    console.log("   - Library catalog list: 5 minutes (localStorage + memory)");
-    console.log("   - Individual song checks: 2 minutes (memory)");
-    console.log("🎯 Album view only (playlists excluded)");
-    console.log("💡 Commands: refreshLibraryCheckmarks() | clearLibraryCache()");
   },
 });
 
