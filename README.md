@@ -2,7 +2,7 @@
 
 A Cider plugin that shows minimal checkmark icons on album tracks that are in your Apple Music library.
 
-![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)
 ![Cider](https://img.shields.io/badge/Cider-2.5%2B-red.svg)
 
 ## Features

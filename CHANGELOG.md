@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2024-12-22
+## [1.2.0] - 2024-12-22
 
 ### Added
 - **Settings Page**: Full-featured settings interface accessible from Cider plugin settings
@@ -44,11 +44,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Vue component for settings UI (`MySettings.vue`)
 - Exposed configuration to window object for settings component access
 - Registered custom element for settings page
-- Updated plugin version to 1.1.0
+- Updated plugin version to 1.2.0
 
 ---
 
-## [1.0.0] - 2024-12-XX
+## [1.1.0] - 2024-12-21
 
 ### Added
 - Initial release
@@ -79,8 +79,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Release Notes
 
-### v1.1.0 Highlights
+### v1.2.0 Highlights
 This release focuses on **user customization and transparency**. The new settings page gives you full control over cache behavior and visual preferences. Loading icons provide better feedback during library checks, and the enhanced configuration system ensures your preferences persist across sessions.
 
-### Migration from 1.0.0 to 1.1.0
+### Migration from 1.1.0 to 1.2.0
 No migration steps required. Existing localStorage cache will continue to work. Settings will use default values on first launch and can be customized through the new settings page.
