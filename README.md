@@ -55,10 +55,10 @@ The plugin uses a smart two-tier caching system:
 
 ### Cache Strategy
 
-1. **Library Catalog Cache** (1 hour)
+1. **Library Catalog Cache** (5 minutes)
    - Fetches your complete library once
    - Stores all catalog IDs in memory and localStorage
-   - Refreshes every hour to stay current
+   - Refreshes every 5 minutes to stay current
    - Persists across browser sessions
 
 2. **Individual Song Check Cache** (2 minutes)
@@ -69,9 +69,9 @@ The plugin uses a smart two-tier caching system:
 
 ### Why This Design?
 
-- **Library catalog changes slowly** → Cache for 1 hour (you don't add hundreds of songs every minute)
+- **Library catalog changes relatively quickly** → Cache for 5 minutes (when you add songs, they show up soon)
 - **You might check the same album multiple times** → Cache individual checks for 2 minutes
-- **Result**: Fast UI updates with minimal API calls
+- **Result**: Fast UI updates with minimal API calls, fresh data within 5 minutes
 
 ### When You View an Album
 
@@ -86,13 +86,13 @@ The plugin uses a smart two-tier caching system:
 
 ### Typical Usage
 - **First time**: 1 API call to fetch entire library (~1-5 seconds for large libraries)
-- **Next album within 1 hour**: 0 API calls (uses cached library)
+- **Next album within 5 minutes**: 0 API calls (uses cached library)
 - **Revisiting same album within 2 minutes**: 0 processing (uses cached results)
 
 ### Example: Large Library (5000+ songs)
 - Initial fetch: ~5 seconds, 50-100 API calls (one-time cost)
-- Cached for 1 hour: Instant checkmarks for all subsequent albums
-- After 1 hour: Refreshes automatically in background
+- Cached for 5 minutes: Instant checkmarks for all subsequent albums
+- After 5 minutes: Refreshes automatically in background (~1-2 seconds)
 
 This is extremely efficient compared to checking each song individually!
 

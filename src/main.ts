@@ -19,7 +19,7 @@ const { plugin } = definePluginContext({
   setup() {
     const checkCache = new Map<string, LibraryCacheEntry>();
     const CHECK_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes - how long to cache individual song library status checks
-    const LIBRARY_CACHE_DURATION = 60 * 60 * 1000; // 1 hour - how long to cache the full library catalog ID list
+    const LIBRARY_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes - how long to cache the full library catalog ID list
     
     let libraryCatalogIds: Set<string> | null = null;
     let libraryFetchTimestamp = 0;
@@ -176,13 +176,13 @@ const { plugin } = definePluginContext({
      * Get library catalog IDs (from cache or fresh fetch)
      * 
      * This fetches the complete list of catalog IDs for all songs in your library.
-     * The list is cached for 1 hour in both memory and localStorage to avoid expensive API calls.
+     * The list is cached for 5 minutes in both memory and localStorage to avoid expensive API calls.
      * 
      * Cache strategy:
-     * - LIBRARY_CACHE_DURATION (1 hour): Full library catalog ID list
+     * - LIBRARY_CACHE_DURATION (5 minutes): Full library catalog ID list
      * - CHECK_CACHE_DURATION (2 minutes): Individual song library status results
      * 
-     * This means the plugin checks against a cached library list, but refreshes that list hourly.
+     * This means the plugin checks against a cached library list, but refreshes that list every 5 minutes.
      * Individual song checks are cached for 2 minutes to quickly respond to recent changes.
      */
     async function getLibraryCatalogIds(): Promise<Set<string>> {
@@ -456,7 +456,7 @@ const { plugin } = definePluginContext({
 
     console.log("✅ Library Checkmark Plugin loaded!");
     console.log("💾 Cache Strategy:");
-    console.log("   - Library catalog list: 1 hour (localStorage + memory)");
+    console.log("   - Library catalog list: 5 minutes (localStorage + memory)");
     console.log("   - Individual song checks: 2 minutes (memory)");
     console.log("🎯 Album view only (playlists excluded)");
     console.log("💡 Commands: refreshLibraryCheckmarks() | clearLibraryCache()");
