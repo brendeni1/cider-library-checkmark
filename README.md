@@ -5,6 +5,11 @@ A Cider plugin that shows minimal checkmark icons on album tracks that are in yo
 ![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)
 ![Cider](https://img.shields.io/badge/Cider-2.5%2B-red.svg)
 
+## Example
+
+![Example of the Plugin](https://github.com/brendeni1/cider-library-checkmark/blob/main/images/example.png)
+
+
 ## Features
 
 - ✅ **Visual Indicators**: Shows a subtle checkmark on tracks that are in your library
